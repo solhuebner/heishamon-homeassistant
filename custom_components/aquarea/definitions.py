@@ -144,17 +144,17 @@ def read_operating_mode_state(value: str) -> str:
     return str(mode)
 
 
+PUMP_FLOWRATE_MODE = {
+    "0": "DeltaT",
+    "1": "Maximum flow",
+}
+
+
 def read_pump_flowrate_mode(value: str) -> Optional[str]:
-    if value == "0":
-        return "DeltaT"
-    if value == "1":
-        return "Maximum flow"
-    if value == "-1":
-        return None
-    _LOGGER.warning(
-        f"Unknown flow rate mode '{value}', please open ticket to maintainer"
-    )
-    return None
+    return PUMP_FLOWRATE_MODE.get(value, None)
+
+def pump_flowrate_mode_to_mqtt(value: str) -> Optional[str]:
+    return lookup_by_value(PUMP_FLOWRATE_MODE, value)
 
 
 def read_liquid_type(value: str) -> Optional[str]:
@@ -933,6 +933,16 @@ def build_selects(mqtt_prefix: str) -> list[HeishaMonSelectEntityDescription]:
             state=read_quiet_mode_priority,
             state_to_mqtt=quiet_mode_priority_to_mqtt,
             options=list(QUIET_MODE_PRIORITY.values()),
+        ),
+        HeishaMonSelectEntityDescription(
+            heishamon_topic_id="SET42",  # corresponds to TOP106
+            key=f"{mqtt_prefix}main/Pump_Flowrate_Mode",
+            command_topic=f"{mqtt_prefix}commands/SetPumpFlowrateMode",
+            name="Aquarea Pump Flowrate Mode",
+            entity_category=EntityCategory.CONFIG,
+            state=read_pump_flowrate_mode,
+            state_to_mqtt=pump_flowrate_mode_to_mqtt,
+            options=list(PUMP_FLOWRATE_MODE.values()),
         ),
         HeishaMonSelectEntityDescription(
             heishamon_topic_id="SetSmartGridMode",
@@ -1988,7 +1998,9 @@ def build_sensors(mqtt_prefix: str) -> list[HeishaMonSensorEntityDescription]:
             key=f"{mqtt_prefix}main/Pump_Flowrate_Mode",
             name="Aquarea Pump flowrate mode",
             state=read_pump_flowrate_mode,
-            entity_registry_enabled_default=False,  # by default we hide all options related to less common setup (cooling, buffer, solar and pool)
+            device_class=SensorDeviceClass.ENUM,
+            options=list(PUMP_FLOWRATE_MODE.values()),
+            entity_registry_enabled_default=False,  # deprecated, use SET42 select entity instead
         ),
         HeishaMonSensorEntityDescription(
             heishamon_topic_id="TOP107",
