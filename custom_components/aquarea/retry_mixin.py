@@ -60,19 +60,29 @@ class CommandRetryMixin:
             retry_callback: Async function to call if retry is needed
             tolerance: Optional tolerance for numeric comparisons (e.g., 0.1 for temperature)
         """
-        # Cancel any existing pending command
+        # Check if we're re-registering the same command (e.g., during a retry)
+        retry_count = 0
         if self._pending_command is not None:
-            _LOGGER.debug(
-                f"{self.name}: Superseding pending command (expected: {self._pending_command.expected_value}) "
-                f"with new command (expected: {expected_value})"
-            )
+            if self._values_match(expected_value, self._pending_command.expected_value, tolerance):
+                # Same command, preserve retry count to avoid infinite loop
+                retry_count = self._pending_command.retry_count
+                _LOGGER.debug(
+                    f"{self.name}: Re-registering same command (expected: {expected_value}), "
+                    f"preserving retry count: {retry_count}"
+                )
+            else:
+                # Different command, supersede the old one
+                _LOGGER.debug(
+                    f"{self.name}: Superseding pending command (expected: {self._pending_command.expected_value}) "
+                    f"with new command (expected: {expected_value})"
+                )
             self._cancel_pending_command()
 
         # Create new pending command
         self._pending_command = PendingCommand(
             expected_value=expected_value,
             sent_at=asyncio.get_event_loop().time(),
-            retry_count=0,
+            retry_count=retry_count,
             retry_callback=retry_callback,
             tolerance=tolerance,
         )
